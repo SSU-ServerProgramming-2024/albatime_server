@@ -1,7 +1,7 @@
 from models.example_models import db, User, Boss, EmployeeReview, WorkInformation, Company, Alba, TimeBlock, Timetable
 from flask import session, jsonify, request
 from sqlalchemy.exc import SQLAlchemyError
-
+from datetime import datetime
 def login_user(id, password):
     try:
         user = User.query.filter_by(id=id).first()
@@ -64,23 +64,34 @@ def fetch_workers_by_boss(bossno):
         return jsonify({"error": "Internal Server Error"}), 500
 
 
-def add_worker():
+def add_worker(bossno):
     try:
         data = request.get_json()
         new_worker = Alba(
-            albano=data['albano'],
             name=data['name'],
-            age=data['age']
+            age=data['age'],
+            bossno=bossno  # URL에서 받은 bossno 추가
         )
         db.session.add(new_worker)
         db.session.commit()
-        return jsonify({'message': 'Worker added successfully'}), 201
+        
+        # 알바생이 추가된 후에 albano를 사용하여 work_information 테이블에 데이터 추가
+        new_work_info = WorkInformation(
+            albano=new_worker.albano,
+            bossno=bossno,
+            money=data['money'],
+            startday=datetime.strptime(data['startday'], '%Y-%m-%d').date()
+            # 다른 필드는 기본값으로 자동 채워지도록 두기
+        )
+        db.session.add(new_work_info)
+        db.session.commit()
+
+        return jsonify({'message': 'Worker added successfully'}), 200
     except KeyError:
         return jsonify({'error': 'Missing required data'}), 400
     except SQLAlchemyError as e:
         db.session.rollback()
         return jsonify({'error': 'Database error', 'message': str(e)}), 500
-
 
 def delete_alba(albano):
     alba = Alba.query.filter_by(albano=albano).first()
@@ -90,7 +101,7 @@ def delete_alba(albano):
     db.session.delete(alba)
     db.session.commit()
 
-    return jsonify({'message': 'Alba deleted successfully'}), 20
+    return jsonify({'message': 'Alba deleted successfully'}), 200
 
 
 def get_user_profile(request):
@@ -138,7 +149,7 @@ def get_schedule(bossno):
             result = {
                 "albano": alba.albano,
                 "name": alba.name,
-                "timeblocks": [{'start_time': timeblock.start_time, 'duration': timeblock.duration}] if timeblock else [],
+                "timeblock": [{'start_time': timeblock.start_time, 'duration': timeblock.duration}] if timeblock else [],
                 "timetables": [{'weekday': timetable.weekday, 'comno': timetable.comno}] if timetable else []
             }
             results.append(result)
@@ -149,3 +160,14 @@ def get_schedule(bossno):
     except Exception as e:
         return jsonify({'error': 'Internal Server Error', 'message': str(e)}), 500
 
+
+
+def update_alba_record(albano, updates):
+    alba = Alba.query.filter_by(albano=albano).first()
+    if not alba:
+        return None
+    for key, value in updates.items():
+        if hasattr(alba, key):
+            setattr(alba, key, value)
+    db.session.commit()
+    return alba

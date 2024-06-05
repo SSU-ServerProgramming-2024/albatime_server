@@ -23,9 +23,9 @@ def get_workers():
 def profile():
     return get_user_profile(request)
 
-@bp.route('/create', methods=['POST'])
-def create():
-    return add_worker()
+@bp.route('/create/<int:bossno>', methods=['POST'])
+def create(bossno):
+    return add_worker(bossno)
 
 @bp.route('/delete/<int:albano>', methods=['DELETE'])
 def delete(albano):
@@ -35,3 +35,12 @@ def delete(albano):
 @bp.route('/schedule/<int:bossno>', methods=['GET'])
 def schedule(bossno):
     return get_schedule(bossno)
+
+@bp.route('/alba/<int:albano>', methods=['PATCH'])
+def update_alba(albano):
+    updates = request.json
+    result = update_alba_record(albano, updates)
+    if result:
+        return jsonify({'message': 'Updated successfully'}), 200
+    else:
+        return jsonify({'message': 'Alba not found'}), 404
